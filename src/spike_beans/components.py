@@ -61,58 +61,6 @@ class PyTablesSource(GenericSource, PyTablesFilter):
     def __init__(self, h5file, dataset, overwrite=False, f_filter=None):
         GenericSource.__init__(self, dataset, overwrite, f_filter)
         PyTablesFilter.__init__(self, h5file)
-        
-class NoMeanSource(object):
-    """
-    A wrapper class to any proper I/O filter component.
-    Subtracts mean from the signal in the specified window
-    """
-    def __init__(self, io_filter, window):     
-        # this is to avoid use of overridden __setattr__
-        object.__setattr__(self, '_io_filter', io_filter)
-        object.__setattr__(self, '_window', window)
-        
-    def __getattribute__(self, name):
-        io_filter = object.__getattribute__(self, '_io_filter')
-        
-        if name=='signal' and io_filter._signal is None:
-            subtract_mean = object.__getattribute__(self, 'subtract_mean')
-            window = object.__getattribute__(self, '_window')
-            subtract_mean(io_filter, window)
-            
-        try:
-            attr = getattr(io_filter, name)
-        except AttributeError:
-            attr = object.__getattribute__(self, name)
-            
-        return attr
-    
-    def __setattr__(self, name, value):
-        io_filter = object.__getattribute__(self, '_io_filter')
-        setattr(io_filter, name, value)
-    
-    def subtract_mean(self, io_filter, window):
-        """
-        subtract mean before returning signal
-        """
-        sp = io_filter.read_signal()
-        stim = io_filter.events['stim']
-        
-        print 'subtracting mean...'
-
-        wshapes = sort.extract.extract_spikes(sp, stim, window, resample=None, contacts='all')
-        mean_waves = np.mean(wshapes['data'], 1)
-        
-        stim_idx = sort.extract.filter_spt(sp, stim, window)
-        stim_data_idx = (stim['data'][stim_idx]/1000.*sp['FS']).astype(np.int32)
-        win_data_idx = (np.asarray(window)/1000.*sp['FS']).astype(np.int32)
-        
-        for i in stim_idx:
-            insert_start_idx = stim_data_idx[i] + win_data_idx[0]
-            insert_end_idx = insert_start_idx + mean_waves.shape[0]
-            sp['data'][:,insert_start_idx:insert_end_idx] -= mean_waves.T
-               
-        print '... done'
  
 class SpikeDetector(base.Component):
     """Detect Spikes with alignment"""
@@ -634,38 +582,4 @@ class ExportWithMetadata(ExportCells):
                     'type' : self.marker_src.type,
                     'filter' : self.export_filter.f_filter,
                     'sp_win' : self.marker_src.sp_win}
-        return metadata  
-                
-class Dashboard(MplPlotComponent):
-    labels_src = base.RequiredFeature("LabelSource", 
-                                      base.HasAttributes("labels"))
-    marker_src = base.RequiredFeature("SpikeMarkerSource",
-                                      base.HasAttributes("events"))
-    export_filter = base.RequiredFeature("EventsOutput",
-                                        base.HasAttributes("dataset"))
-    
-    def _plot(self):
-        stim = self.export_filter.read_spt("/".join((self.export_filter.dataset, 'stim')))
-        
-        labels = self.labels_src.labels
-        spike_idx = self.marker_src.events
-        
-        try:
-            spt = sort.cluster.split_cells(spike_idx, labels)[self.cell]
-        except:
-            old_cell=self.cell
-            for c in range(max(self.labels_src.labels) + 1)[::-1]:
-                try: 
-                    spt = sort.cluster.split_cells(spike_idx, labels)[c]
-                    self.cell=c
-                    break
-                except: pass
-            print "Dashboard: cell %s doesn't exist any more, plotting cell %s" % (old_cell, self.cell)
-        
-        dataset = {'spt':spt['data'], 'stim': stim['data'], 'ev':[]}
-        dashboard.plot_dataset(dataset, self.fig)
-        
-    def show(self, cell):
-        self.cell = cell
-        if not self.fig:
-            self._draw()
+        return metadata
