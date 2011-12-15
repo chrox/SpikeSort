@@ -11,7 +11,6 @@ from spike_sort.io.filters import BakerlabFilter, PyTablesFilter
 from spike_sort import features
 from spike_sort.ui import plotting
 from spike_sort.ui import zoomer
-from spike_analysis import dashboard
 import numpy as np
 
 class GenericSource(base.Component):
